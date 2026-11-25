@@ -89,6 +89,22 @@ ol.steps{margin:0;padding-left:22px;display:grid;gap:8px;max-width:80ch}ol.steps
 ul.notes{margin:12px 0 0;padding-left:20px;display:grid;gap:6px;max-width:80ch;font-size:15px}
 .warn{border-left:4px solid var(--red);padding:8px 12px;background:var(--panel);border-radius:4px;font-size:14px;margin-bottom:12px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.simp{background:var(--card);border:2px solid #14b866;border-radius:10px;padding:14px 16px}
+.simhead{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:6px}
+.simhead h3{margin:0;font-family:"Barlow Semi Condensed",sans-serif;font-size:20px}.simp h4{margin:0 0 8px;font-family:"Barlow Semi Condensed",sans-serif;font-size:15px;color:var(--ink2)}
+.spd{display:flex;gap:6px;align-items:center;font-size:14px}.spd select{min-height:40px;border:1px solid var(--rule);border-radius:7px;background:var(--paper);padding:4px 8px;font-size:15px}
+.simgrid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px}
+.ctrls{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.cbtn{min-height:52px;text-align:left;padding:7px 10px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none}
+.cbtn b{display:block;font-size:14px;line-height:1.2}.cbtn span{display:block;font-size:12px;color:var(--ink2)}
+.cbtn.act{border-color:#14b866;background:color-mix(in srgb,#14b866 16%,var(--paper));box-shadow:inset 4px 0 0 #14b866}
+.cbtn.k-push b::after{content:" · giữ";font-weight:500;color:var(--ink2);font-size:12px}.cbtn.k-estop.act,.cbtn.k-trip.act{border-color:var(--red);background:color-mix(in srgb,var(--red) 14%,var(--paper));box-shadow:inset 4px 0 0 var(--red)}
+.cbtn.k-cb:not(.act){border-color:var(--red);box-shadow:inset 4px 0 0 var(--red)}
+.outs{display:flex;flex-wrap:wrap;gap:6px}.oc{display:inline-flex;gap:6px;align-items:center;padding:5px 10px;border-radius:999px;border:1px solid var(--rule);font-size:13px;background:var(--paper)}
+.oc i{width:10px;height:10px;border-radius:50%;background:var(--rule)}.oc.on{border-color:#14b866}.oc.on i{background:#14b866;box-shadow:0 0 0 3px color-mix(in srgb,#14b866 30%,transparent)}
+.log{margin:0;padding-left:0;list-style:none;font-size:13px;max-height:180px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace}.log li{padding:1px 0}.log li span{color:var(--ink2)}
+#simBtn[aria-pressed=true]{background:#14b866;border-color:#14b866;color:#fff}
+@media(max-width:700px){.simgrid{grid-template-columns:minmax(0,1fr)}}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
 pre,.scroll{overflow-x:auto}
@@ -126,7 +142,7 @@ pre,.scroll{overflow-x:auto}
       <div class="checks" id="aiOnly" hidden><label><input type="checkbox" id="aiCont"> AI chỉnh tiếp từ sơ đồ đang mở</label></div>
       <div class="status" id="aiStatus" role="status"></div>
       <div id="aiReply"></div>
-      <p class="hint" id="aiHint">Chạy offline, không cần tài khoản AI. Hãy nêu: loại tải và công suất; cách khởi động (trực tiếp, sao–tam giác, biến tần, đảo chiều); cách điều khiển (phao, áp suất, nhiệt độ, hẹn giờ, cảm biến, tay/tự động); dừng khẩn, còi báo, số cấp tốc độ, chiều dài cáp.</p>
+      <p class="hint" id="aiHint">Chạy offline, không cần tài khoản AI. Mô tả bằng lời thường: có thiết bị gì (đèn, ổ cắm, quạt, bình nóng lạnh, chuông, van, đèn báo, băng tải, động cơ…), điều khiển bằng gì (công tắc, nút nhấn, cảm biến, công tắc cửa, phao, nhiệt độ, hẹn giờ) và logic “khi … thì bật/tắt”, “sau 2 giây”, “sáng 3 phút rồi tắt”. Chỉ khi có động cơ kèm kW mới vẽ phần động lực.</p>
     </section>
     <section class="card">
       <h2>3. Hãng thiết bị</h2>
@@ -149,11 +165,27 @@ pre,.scroll{overflow-x:auto}
         <button class="btn ghost" id="zOut" aria-label="Thu nhỏ">−</button>
         <button class="btn ghost" id="zFit">Vừa khung</button>
         <button class="btn ghost" id="zIn" aria-label="Phóng to">+</button>
+        <button class="btn" id="simBtn" aria-pressed="false">▶ Chạy thử</button>
         <button class="btn ghost" id="cpSvg">Sao chép SVG</button>
         <button class="btn" id="dlSvg" hidden>Tải SVG</button>
       </div>
     </div>
     <div class="viewer" id="viewer"></div>
+    <section class="simp" id="simPanel" hidden aria-label="Chạy thử mạch">
+      <div class="simhead">
+        <h3>Chạy thử mạch</h3>
+        <div class="row" style="margin:0">
+          <label class="spd">Tốc độ thời gian <select id="simSpeed"><option value="1">1×</option><option value="10">10×</option><option value="60">60×</option></select></label>
+          <button class="btn ghost" id="simReset">Đặt lại</button>
+          <button class="btn ghost" id="simStop">Thoát chạy thử</button>
+        </div>
+      </div>
+      <p class="hint" style="margin:0 0 10px">Bấm trực tiếp lên nút, công tắc, cảm biến trên bản vẽ hoặc dùng các nút dưới đây. Nút nhấn: giữ để nhấn, thả là nhả. Dây có điện hiển thị <b style="color:#14b866">xanh lá</b>, tải đang chạy được tô sáng.</p>
+      <div class="simgrid">
+        <div><h4>Thao tác</h4><div class="ctrls" id="simCtrls"></div></div>
+        <div><h4>Tải / cuộn hút</h4><div class="outs" id="simOuts"></div><h4 style="margin-top:12px">Nhật ký</h4><ol class="log" id="simLog"></ol></div>
+      </div>
+    </section>
     <div class="tabs" role="tablist">
       <button role="tab" aria-selected="true" data-t="bom">Thiết bị &amp; hãng</button>
       <button role="tab" aria-selected="false" data-t="wire">Bảng đấu dây</button>
@@ -166,7 +198,9 @@ pre,.scroll{overflow-x:auto}
 <div class="toast" id="toast" role="status"></div>
 <script src="engine.js"></script>
 <script src="templates.js"></script>
+<script src="compose.js"></script>
 <script src="nlp.js"></script>
+<script src="sim.js"></script>
 <script src="app.js"></script>
 <script>if('serviceWorker' in navigator&&location.protocol==='https:'){try{navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}}</script>
 </body>

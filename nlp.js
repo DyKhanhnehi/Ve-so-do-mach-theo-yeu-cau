@@ -16,10 +16,10 @@
     ats: /\bats\b|may phat|chuyen nguon|(2|hai) nguon|nguon du phong/,
     dist: /tu phan phoi|tu dien tong|tu tong|\bmsb\b|\bdb\b|phan phoi|\d+\s*lo\b|lo ra|xuat tuyen|feeder/,
     lightW: /chieu sang|o cam|cau thang|bong den|\bden (led|tuyp|pha|duong|nha|xuong|hanh lang|san|ngoai)|\d+\s*(mach |lo )?den\b|mach den|he thong den|bat den|tat den/,
-    motorW: /dong co|motor|\bbom\b|quat|bang tai|may nen|may khuay|may nghien|bien tan|sao.{0,3}tam giac|dao chieu|khoi dong|cau truc|palang|tang ap|bom nuoc|\bkw\b.*(chay|dung)/,
+    motorW: /dong co|motor|cua cuon|cong truot|cong dien|palang|thang nang|\bbom\b|quat|bang tai|may nen|may khuay|may nghien|bien tan|sao.{0,3}tam giac|dao chieu|khoi dong|cau truc|palang|tang ap|bom nuoc|\bkw\b.*(chay|dung)/,
     vfd: /bien tan|inverter|\bvfd\b|\bvsd\b|dieu chinh toc do|thay doi toc do|(\d|hai|ba) (cap )?toc do|nhieu toc do/,
     sd: /sao.{0,3}(tam giac|delta)|\by.{0,2}(delta|tam giac|Δ|d)\b|star.?delta/,
-    rev: /dao chieu|thuan.{0,5}nghich|(2|hai) chieu quay|quay (2|hai) chieu|len.{0,5}xuong|tien.{0,5}lui|dong.{0,5}mo (cua|cong)|cuon.{0,5}nha/,
+    rev: /dao chieu|thuan.{0,5}nghich|(2|hai) chieu quay|quay (2|hai) chieu|len.{0,5}xuong|tien.{0,5}lui|dong.{0,5}mo|mo.{0,5}dong|cua cuon|cong (truot|dien|tu dong)|nang.{0,5}ha|cuon.{0,5}nha/,
     soft: /khoi dong mem|soft.?start/,
     estop: /dung khan|khan cap|e.?stop|emergency|nam dung/,
     horn: /\bcoi\b|chuong|buzzer|bao truoc|canh bao truoc/,
@@ -31,6 +31,38 @@
     sens: /cam bien|sensor|tiem can|cam bien quang/,
     ext: /\bplc\b|\bbms\b|scada|tin hieu ngoai|lenh ngoai/
   };
+
+  // ---- điều kiện "khi … thì chạy/dừng" ----
+  const VSTART = /^(chay|bat|khoi dong|mo may|hoat dong|quay)/, VSTOP = /^(dung|ngung|tat|ngat|cat)/;
+  function device(c) {
+    const t = c.match(/(\d+(?:\.\d+)?)\s*(phut|giay|s|gio|h)\b/);
+    if (t && !/cam bien|sensor|phao|\bap\b|ap suat|nhiet/.test(c)) return { kind: 'time', sec: Math.round(parseFloat(t[1]) * ({ phut: 60, gio: 3600, h: 3600 }[t[2]] || 1)) };
+    if (/hanh trinh|limit|cu chan|gioi han|cuoi hanh|cham cuoi|dung cuoi/.test(c)) return { kind: 'limit' };
+    if (/cam bien|sensor|tiem can|quang|co vat|phat hien|nhan dien|vat den|vat toi|hang den/.test(c)) return { kind: 'sensor' };
+    if (/phao|muc nuoc|nuoc|\bbe\b|\bbon\b|\bday\b|\bcan\b|\bmuc\b/.test(c) && !/\bap\b|ap suat|nhiet/.test(c)) return { kind: 'level', high: /\bday\b|\bcao\b|tran/.test(c) };
+    if (/ap suat|ap luc|\bap\b|du ap/.test(c)) return { kind: 'pressure', high: /du|cao|dat|tang/.test(c) };
+    if (/nhiet|nong|lanh/.test(c)) return { kind: 'temp' };
+    if (/\bcham\b|va cham|dung vao|tac dong/.test(c)) return { kind: 'limit' };
+    return null;
+  }
+  function conditions(n) {
+    const out = { start: [], stop: [] };
+    const push = (verb, cond) => { const d = device(cond); if (!d) return; if (VSTART.test(verb)) out.start.push(d); else if (VSTOP.test(verb)) out.stop.push(d); };
+    n.split(/[,.;!\n]|\broi\b|\bsau do\b|\bcon\b/).forEach(c => {
+      c = c.trim(); if (!c) return;
+      let m = c.match(/(?:khi|neu|luc|he|cu|moi khi|mot khi)\s+(.+?)\s+(?:thi|la|se|lap tuc|tu)\s+(chay|bat|khoi dong|hoat dong|quay|dung|ngung|tat|ngat|cat)/);
+      if (m) return push(m[2], m[1]);
+      m = c.match(/(chay|bat|khoi dong|hoat dong|quay|dung|ngung|tat|ngat)\s+(?:lai\s+)?(?:khi|neu|luc|cho den khi|den khi|toi khi|sau khi|theo)\s+(.+)/);
+      if (m) return push(m[1], m[2]);
+      m = c.match(/(.+?)\s+(?:thi|la|se|de|tu)\s+(chay|bat|khoi dong|dung|ngung|tat|ngat)/);
+      if (m) return push(m[2], m[1]);
+    });
+    let tr = n.match(/(truoc khi |coi[^,.;]{0,20})?chay\s+(?:trong\s+)?(\d+(?:\.\d+)?)\s*(phut|giay|s|gio|h)\b/);
+    if (tr && tr[1]) tr = null; if (tr) tr = [tr[0], tr[2], tr[3]];
+    tr = tr || n.match(/dung sau\s+(\d+(?:\.\d+)?)\s*(phut|giay|s|gio|h)\b/);
+    if (tr && !out.stop.some(d => d.kind === 'time')) out.stop.push({ kind: 'time', sec: Math.round(parseFloat(tr[1]) * ({ phut: 60, gio: 3600, h: 3600 }[tr[2]] || 1)) });
+    return out;
+  }
 
   function parse(text) {
     const n = norm(text);
@@ -49,6 +81,9 @@
 
     const isPLC = has(n, RE.plc) && (has(n, /cam bien|nut|ngo vao|dau vao|ngo ra|dau ra|\bi\/?o\b|\bdi\b|\bdo\b/) || !has(n, RE.motorW));
     const lightOnly = has(n, RE.lightW) && !has(n, RE.motorW);
+    const C = G.CircuitCompose;
+    const guess = isPLC ? 'plc' : has(n, RE.ats) ? 'ats' : (has(n, RE.dist) && !lightOnly && !has(n, /bien tan|sao.{0,3}tam giac|dao chieu/)) ? 'dist' : '';
+    if (C && C.wants(n, guess)) { const c = C.build(n, G.CircuitLib); if (c) return { custom: c.result, got: ['Ghép mạch tự do theo mô tả (không dùng mạch mẫu)', ...c.got], dft: c.dft, notes: c.notes }; }
     let tpl;
     if (isPLC) tpl = 'plc';
     else if (has(n, RE.ats)) tpl = 'ats';
@@ -58,6 +93,7 @@
       if (has(n, RE.vfd)) tpl = 'vfd'; else if (has(n, RE.sd)) tpl = 'sd'; else if (has(n, RE.rev)) tpl = 'rev'; else tpl = 'dol';
       if (has(n, RE.soft)) { notes.push('Chưa có mạch mẫu khởi động mềm — đã dùng ' + (tpl === 'dol' ? (kW >= 15 ? 'sao–tam giác' : 'khởi động trực tiếp') : 'mạch gần nhất') + '; khởi động mềm đấu giống biến tần ở mạch động lực.'); if (tpl === 'dol' && kW >= 15) tpl = 'sd'; }
     } else {
+      if (C) { const c = C.build(n, G.CircuitLib); if (c) return { custom: c.result, got: ['Ghép mạch tự do theo mô tả', ...c.got], dft: c.dft, notes: c.notes }; }
       return { error: 'Chưa nhận ra loại mạch. Hãy nêu rõ tải (động cơ/bơm/quạt, đèn, tủ phân phối, ATS, PLC) và công suất, ví dụ: “bơm 5,5 kW chạy theo phao, có dừng khẩn”.' };
     }
 
@@ -78,17 +114,37 @@
         p.duty = has(n, /\bbom\b|quat|thong gio|hut/) ? 'Nhẹ (bơm, quạt)' : 'Nặng (băng tải, máy)'; got.push('Tải ' + (p.duty.startsWith('Nhẹ') ? 'nhẹ (bơm/quạt)' : 'nặng'));
         if (has(n, RE.horn) || has(n, RE.float) || has(n, RE.press)) notes.push('Mạch biến tần chưa ghép còi báo/phao/áp suất — có thể dùng ngõ vào DI của biến tần cho các tín hiệu này (cài trong thông số).');
       } else {
-        if (tpl !== 'rev') {
+        const cd = conditions(n);
+        ['level', 'pressure', 'temp'].forEach(k => { if (cd.start.some(d => d.kind === k) && cd.stop.some(d => d.kind === k)) { cd.stop = cd.stop.filter(d => d.kind !== k); cd.pair = k; } });
+        const STOPMAP = { sensor: 'Cảm biến', limit: 'Công tắc hành trình', level: 'Phao (mực đầy)', pressure: 'Công tắc áp suất (áp đủ)', temp: 'Rơ-le nhiệt độ', time: 'Hết thời gian chạy' };
+        const fmt = s => s % 3600 === 0 && s >= 3600 ? s / 3600 + ' giờ' : s % 60 === 0 && s >= 60 ? s / 60 + ' phút' : s + ' giây';
+        if (tpl === 'dol' && cd.stop.length) {
+          const d = cd.stop[0]; p.stopBy = STOPMAP[d.kind];
+          if (d.kind === 'time') { p.tRun = d.sec; got.push(`Tự dừng sau ${fmt(d.sec)}`); } else got.push(`Tự dừng khi ${p.stopBy.toLowerCase()} tác động (tiếp điểm NC nối tiếp)`);
+          if (cd.stop.length > 1) notes.push('Có nhiều điều kiện dừng — đã ghép điều kiện đầu tiên; thêm tiếp điểm NC nối tiếp cho các điều kiện còn lại.');
+        }
+        if (tpl === 'dol' && cd.start.length) {
+          const d = cd.start[0];
+          if (d.kind === 'sensor' || d.kind === 'limit') { p.startBy = d.kind === 'sensor' ? 'Cảm biến' : 'Công tắc hành trình'; got.push(`Khởi động bằng nút Chạy hoặc ${p.startBy.toLowerCase()} (NO song song, có tự giữ)`); }
+          else if (d.kind === 'level' || d.kind === 'pressure' || d.kind === 'temp') { p.auto = { level: 'Phao (mực nước)', pressure: 'Công tắc áp suất', temp: 'Rơ-le nhiệt độ' }[d.kind]; got.push('TAY/TỰ ĐỘNG theo ' + p.auto.toLowerCase() + (cd.pair === d.kind ? ' (2 mức: chạy khi thấp, dừng khi đạt)' : '')); }
+        }
+        if (tpl === 'rev' && (cd.stop.some(d => d.kind === 'limit' || d.kind === 'sensor') || has(n, /hanh trinh|limit|gioi han/))) { p.lim = 'Có'; got.push('Công tắc hành trình 2 đầu (dừng khi chạm cuối)'); }
+        if (tpl !== 'rev' && !p.auto && !(cd.start.length || cd.stop.length) || (tpl !== 'rev' && !p.auto && has(n, /tay.{0,6}tu dong|tu dong theo|chay theo/))) {
           let src = null;
           if (has(n, RE.float)) src = 'Phao (mực nước)'; else if (has(n, RE.press)) src = 'Công tắc áp suất'; else if (has(n, RE.temp)) src = 'Rơ-le nhiệt độ';
           else if (has(n, RE.sched)) src = 'Hẹn giờ'; else if (has(n, RE.sens)) src = 'Cảm biến'; else if (has(n, RE.ext)) src = 'Tín hiệu ngoài (PLC/BMS)';
           else if (has(n, RE.manauto)) { src = 'Tín hiệu ngoài (PLC/BMS)'; dft.push('nguồn tín hiệu tự động (dùng tiếp điểm ngoài)'); }
           if (src) { p.auto = src; got.push('TAY/TỰ ĐỘNG theo ' + src.toLowerCase()); }
-        } else if (has(n, RE.float) || has(n, RE.press) || has(n, RE.manauto)) notes.push('Mạch đảo chiều chưa ghép chế độ tự động — dùng mạch khởi động trực tiếp nếu chỉ cần 1 chiều.');
-        if (tpl === 'dol' && has(n, RE.horn)) { p.horn = sec || 5; got.push(`Còi báo trước ${p.horn} s`); if (!sec) dft.push('thời gian còi (5 s)'); }
+        }
+        if (tpl === 'rev' && (has(n, RE.float) || has(n, RE.press) || has(n, RE.manauto))) notes.push('Mạch đảo chiều chưa ghép chế độ tự động — dùng mạch khởi động trực tiếp nếu chỉ cần 1 chiều.');
+        const hs = n.match(/(?:coi|chuong|bao truoc)[^,.;]{0,30}?(\d+(?:\.\d+)?)\s*(?:s|giay)\b/) || n.match(/(\d+(?:\.\d+)?)\s*(?:s|giay)\b[^,.;]{0,20}(?:coi|chuong|bao truoc)/);
+        const hsec = hs ? parseFloat(hs[1]) : (cd.stop.some(d => d.kind === 'time') ? null : sec);
+        if (tpl === 'dol' && has(n, RE.horn)) { p.horn = hsec || 5; got.push(`Còi báo trước ${p.horn} s`); if (!hsec) dft.push('thời gian còi (5 s)'); }
         else if (has(n, RE.horn)) notes.push('Còi báo trước khi chạy hiện chỉ ghép sẵn cho mạch khởi động trực tiếp.');
+        if (tpl === 'sd' && cd.start.length + cd.stop.length && !p.auto) { const k = (cd.start[0] || cd.stop[0]).kind; const a = { level: 'Phao (mực nước)', pressure: 'Công tắc áp suất', temp: 'Rơ-le nhiệt độ', sensor: 'Cảm biến' }[k]; if (a) { p.auto = a; got.push('TAY/TỰ ĐỘNG theo ' + a.toLowerCase()); } }
         if (tpl === 'sd' && sec) { p.ts = sec; got.push(`Chuyển Y→Δ sau ${sec} s`); }
       }
+      if (tpl !== 'vfd' && !p.stopBy && !p.startBy && !p.auto && !p.lim) got.push('Khởi động bằng nút Chạy, dừng bằng nút Dừng (có tự giữ)');
       if (tpl === 'dol' && kW > 15) notes.push(`Động cơ ${kW} kW khởi động trực tiếp có dòng khởi động lớn — nếu muốn, ghi thêm “sao tam giác” hoặc “biến tần” vào mô tả.`);
     }
     if (tpl === 'dist') {

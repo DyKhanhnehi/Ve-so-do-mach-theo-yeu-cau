@@ -11,7 +11,7 @@
   const DEF = {
     cb: { h: ELH, multi: 1 }, rcbo: { h: ELH, multi: 1 }, isol: { h: ELH, multi: 1 }, km: { h: ELH, multi: 1 },
     fuse: { h: ELH, multi: 1 }, ol: { h: ELH, multi: 1 },
-    no: { h: ELH }, nc: { h: ELH }, horn: { h: ELH }, coil: { h: ELH }, tcoil: { h: ELH }, lamp: { h: ELH }, sock: { h: ELH },
+    no: { h: ELH }, nc: { h: ELH }, horn: { h: ELH }, m1: { h: ELH }, sol: { h: ELH }, heat: { h: ELH }, coil: { h: ELH }, tcoil: { h: ELH }, lamp: { h: ELH }, sock: { h: ELH },
     sw: { h: ELH }, plcin: { h: ELH }, plcout: { h: ELH }, psu: { h: ELH }, box2: { h: ELH }, sensor: { h: ELH },
     vfd: { h: 72, multi: 1 }, swap: { h: 44, multi: 1 }, sw2: { h: 116 },
     motor: { h: 92, end: 1, multi: 1 }, motor6: { h: 104, end: 1, multi: 1 }, load: { h: 70, end: 1, multi: 1 },
@@ -31,6 +31,8 @@
         case 'nc': a = e.act === 'thermal' ? '95' : e.act === 'timer' ? '15' : '21'; b = e.act === 'thermal' ? '96' : e.act === 'timer' ? '16' : '22'; break;
         case 'coil': case 'tcoil': a = 'A1'; b = 'A2'; break;
         case 'lamp': case 'horn': a = 'X1'; b = 'X2'; break;
+        case 'm1': case 'heat': a = 'L'; b = 'N'; break;
+        case 'sol': a = '1'; b = '2'; break;
         case 'sock': case 'psu': a = 'L'; b = 'N'; break;
         case 'sw': a = 'L'; b = 'L1'; break;
         case 'sw2': a = 'COM'; b = 'COM'; break;
@@ -130,30 +132,33 @@
       case 'light': return `<path d="M${ax - 14},${ay - 9} l8,6 m-3,-0.5 l3,0.5 l-1,-3 M${ax - 14},${ay - 1} l8,6 m-3,-0.5 l3,0.5 l-1,-3" class="sym"/>`;
       case 'sensor': return `<path d="M${ax - 6},${ay} L${ax},${ay - 6} L${ax + 6},${ay} L${ax},${ay + 6} Z" class="sym" transform="translate(-6,0)"/>`;
       case 'float': return `<circle cx="${ax - 5}" cy="${ay}" r="5" class="sym"/>`;
+      case 'limit': return `<line x1="${ax}" y1="${ay}" x2="${ax - 7}" y2="${ay - 6}" class="sym"/><circle cx="${ax - 9}" cy="${ay - 8}" r="3.2" class="sym fillw"/>`;
       case 'key': return `<circle cx="${ax - 7}" cy="${ay}" r="3.5" class="sym"/><line x1="${ax - 3.5}" y1="${ay}" x2="${ax}" y2="${ay}" class="sym"/>`;
       default: return '';
     }
   }
 
   // draws one pole of a switching symbol at x between ys..ye (36)
-  function poleSym(t, x, ys, ye, col, e) {
+  function poleSym(t, x, ys, ye, col, e, st) {
     let s = '';
-    const top = ys + 9, piv = ye - 9;
-    const wireTop = L(x, ys, x, top, col), wireBot = L(x, piv, x, ye, col);
+    const top = ys + 9, piv = ye - 9, cl = st ? st.closed : undefined;
+    const lt = st && st.pin ? ' live' : '', lb = st && st.pout ? ' live' : '';
+    const wireTop = L(x, ys, x, top, col, lt.trim()), wireBot = L(x, piv, x, ye, col, lb.trim());
+    const bl = st && st.pin && cl ? 'sym livb' : 'sym';
     switch (t) {
       case 'cb': case 'rcbo': case 'isol': case 'km': case 'no': case 'sw': case 'plcout':
-        s += wireTop + wireBot + L(x, piv, x - 11, top + 1, '', 'sym');
+        s += wireTop + wireBot + (cl === true ? L(x, piv, x - 2, top, '', bl) : L(x, piv, x - 11, top + 1, '', 'sym'));
         if (t === 'cb' || t === 'rcbo') s += L(x - 3.5, top - 3.5, x + 3.5, top + 3.5, '', 'sym') + L(x + 3.5, top - 3.5, x - 3.5, top + 3.5, '', 'sym');
         if (t === 'isol') s += L(x - 4, top, x + 4, top, '', 'sym');
         if (t === 'km') s += `<path d="M${x},${top} a3.5,3.5 0 0 0 0,7" class="sym"/>`;
         if (t === 'sw') s += `<circle cx="${x}" cy="${piv}" r="2.2" class="sym fillw"/>`;
         return s;
       case 'nc':
-        return wireTop + wireBot + L(x, top, x + 9, top, '', 'sym') + L(x, piv, x + 11, top - 4, '', 'sym');
+        return wireTop + wireBot + L(x, top, x + 9, top, '', 'sym') + (cl === false ? L(x, piv, x - 11, top + 1, '', 'sym') : L(x, piv, x + 11, top - 4, '', bl));
       case 'fuse':
-        return L(x, ys, x, ye, col) + `<rect x="${x - 5}" y="${ys + 5}" width="10" height="${ye - ys - 10}" class="sym fillw"/>` + L(x, ys + 5, x, ye - 5, '', 'sym');
+        return L(x, ys, x, ye, col, lt.trim()) + (cl === false ? L(x - 7, ys + 10, x + 7, ye - 10, 'var(--red,#d62718)') : '') + `<rect x="${x - 5}" y="${ys + 5}" width="10" height="${ye - ys - 10}" class="sym fillw"/>` + L(x, ys + 5, x, ye - 5, '', 'sym');
       case 'ol':
-        return L(x, ys, x, ys + 6, col) + L(x, ye - 6, x, ye, col) + `<rect x="${x - 6}" y="${ys + 6}" width="12" height="${ye - ys - 12}" class="sym fillw"/>` +
+        return L(x, ys, x, ys + 6, col, lt.trim()) + L(x, ye - 6, x, ye, col, lb.trim()) + `<rect x="${x - 6}" y="${ys + 6}" width="12" height="${ye - ys - 12}" class="sym fillw"/>` +
           `<polyline points="${x},${ys + 6} ${x},${ys + 13} ${x + 4},${ys + 13} ${x + 4},${ye - 13} ${x},${ye - 13} ${x},${ye - 6}" class="sym"/>`;
     }
     return s;
@@ -168,6 +173,8 @@
     const ttag = e.ttag || e.tag, btag = e.btag || e.tag;
     const ys = y + STUB, ye = y + h - STUB;
     const col = p => wireColor(kind, pn[p], C.color);
+    const st = C.sim && e._id != null ? (C.sim[e._id] || {}) : null;
+    const LT = st && st.pin ? 'live' : '', LB = st && st.pout ? 'live' : '';
     let s = '';
     const tagX = X + span + 20 + (e.t === 'sw2' ? 14 : 0) + (/^(plcin|psu|box2)$/.test(e.t) ? 6 : 0) + (e.t === 'horn' ? 2 : 0) + ((e.t === 'motor' || e.t === 'motor6') ? Math.max(0, 26 - span / 2) : 0);
     const label = (yy) => (e.tag ? T(tagX, yy, e.tag, 'tag') : '') + (e.lbl && !/^(plcin|vfdin)$/.test(e.t) ? TW(tagX, yy + 12, e.lbl, 'lbl', 21, 10.5) : '');
@@ -179,8 +186,8 @@
       case 'cb': case 'rcbo': case 'isol': case 'km': case 'fuse': case 'ol': case 'no': case 'nc': case 'sw': case 'plcout': {
         for (let p = 0; p < n; p++) {
           const x = X + p * PS;
-          s += L(x, y, x, ys, col(p)) + L(x, ye, x, y + h, col(p));
-          s += poleSym(e.t, x, ys, ye, col(p), e);
+          s += L(x, y, x, ys, col(p), LT) + L(x, ye, x, y + h, col(p), LB);
+          s += poleSym(e.t, x, ys, ye, col(p), e, st);
           s += tn(p, 1) + tn(p, 0); addTop(p); addBot(p);
         }
         const my = ys + 18;
@@ -192,16 +199,19 @@
         s += label(ys + 14);
         break;
       }
-      case 'coil': case 'tcoil': case 'psu': case 'plcin': case 'box2': case 'lamp': case 'sock': case 'sensor': case 'horn': {
+      case 'coil': case 'tcoil': case 'psu': case 'plcin': case 'box2': case 'lamp': case 'sock': case 'sensor': case 'horn': case 'm1': case 'sol': case 'heat': {
         const x = X;
-        s += L(x, y, x, ys + 9, col(0)) + L(x, ye - 9, x, y + h, col(0));
-        if (e.t === 'lamp') { s += L(x, ys + 9, x, ys + 8, col(0)) + `<circle cx="${x}" cy="${ys + 18}" r="10" class="sym fillw"/>` + L(x - 7, ys + 11, x + 7, ys + 25, '', 'sym') + L(x + 7, ys + 11, x - 7, ys + 25, '', 'sym'); }
+        s += L(x, y, x, ys + 9, col(0), LT) + L(x, ye - 9, x, y + h, col(0));
+        if (e.t === 'lamp') { s += L(x, ys + 9, x, ys + 8, col(0)) + `<circle cx="${x}" cy="${ys + 18}" r="10" class="sym fillw bulb"/>` + L(x - 7, ys + 11, x + 7, ys + 25, '', 'sym') + L(x + 7, ys + 11, x - 7, ys + 25, '', 'sym'); }
         else if (e.t === 'sock') { s += `<path d="M${x - 11},${ys + 13} A11,11 0 0 0 ${x + 11},${ys + 13}" class="sym"/>` + L(x - 11, ys + 13, x + 11, ys + 13, '', 'sym') + L(x, ys + 9, x, ys + 13, col(0)) + L(x, ys + 24, x, ye - 9, col(0)); }
-        else if (e.t === 'horn') { s += `<rect x="${x - 7}" y="${ys + 9}" width="9" height="18" class="sym fillw"/><path d="M${x + 2},${ys + 9} L${x + 13},${ys + 2} L${x + 13},${ys + 34} L${x + 2},${ys + 27} Z" class="sym fillw"/>`; }
-        else if (e.t === 'sensor') { s += `<rect x="${x - 13}" y="${ys + 7}" width="26" height="22" class="sym fillw"/><path d="M${x - 7},${ys + 18} L${x},${ys + 11} L${x + 7},${ys + 18} L${x},${ys + 25} Z" class="sym"/>`; }
+        else if (e.t === 'm1') { s += `<circle cx="${x}" cy="${ys + 18}" r="11" class="sym fillw body"/>` + T(x, ys + 18, 'M', 'inbox', 'middle') + T(x, ys + 26.5, '1~', 'tn', 'middle'); }
+        else if (e.t === 'sol') { s += `<rect x="${x - 14}" y="${ys + 9}" width="28" height="18" class="sym fillw body"/>` + L(x - 14, ys + 27, x + 14, ys + 9, '', 'sym'); }
+        else if (e.t === 'heat') { s += `<rect x="${x - 14}" y="${ys + 9}" width="28" height="18" class="sym fillw body"/>` + [-7, 0, 7].map(d => L(x + d, ys + 12, x + d, ys + 24, '', 'sym')).join(''); }
+        else if (e.t === 'horn') { s += `<rect x="${x - 7}" y="${ys + 9}" width="9" height="18" class="sym fillw body"/><path d="M${x + 2},${ys + 9} L${x + 13},${ys + 2} L${x + 13},${ys + 34} L${x + 2},${ys + 27} Z" class="sym fillw body"/>`; }
+        else if (e.t === 'sensor') { s += `<rect x="${x - 13}" y="${ys + 7}" width="26" height="22" class="sym fillw body"/><path d="M${x - 7},${ys + 18} L${x},${ys + 11} L${x + 7},${ys + 18} L${x},${ys + 25} Z" class="sym"/>`; }
         else {
           const wdt = e.t === 'coil' || e.t === 'tcoil' ? 28 : 36;
-          s += `<rect x="${x - wdt / 2}" y="${ys + 8}" width="${wdt}" height="${ye - ys - 16}" class="sym fillw"/>`;
+          s += `<rect x="${x - wdt / 2}" y="${ys + 8}" width="${wdt}" height="${ye - ys - 16}" class="sym fillw body"/>`;
           if (e.t === 'tcoil') s += `<rect x="${x - 14}" y="${ys + 8}" width="9" height="${ye - ys - 16}" class="sym"/>` + L(x - 14, ys + 8, x - 5, ye - 8, '', 'sym') + L(x - 5, ys + 8, x - 14, ye - 8, '', 'sym');
           const inner = e.t === 'psu' ? 'AC/DC' : e.t === 'plcin' ? (e.lbl || 'I') : e.t === 'box2' ? (e.tag || '') : '';
           if (inner) s += T(x, ys + 21.5, inner.slice(0, 7), 'inbox', 'middle');
@@ -211,7 +221,7 @@
         break;
       }
       case 'vfd': {
-        for (let p = 0; p < n; p++) { const x = X + p * PS; s += L(x, y, x, ys + 4, col(p)) + L(x, ye - 4, x, y + h, col(p)) + tn(p, 1) + tn(p, 0); addTop(p); addBot(p); }
+        for (let p = 0; p < n; p++) { const x = X + p * PS; s += L(x, y, x, ys + 4, col(p), LT) + L(x, ye - 4, x, y + h, col(p), LB) + tn(p, 1) + tn(p, 0); addTop(p); addBot(p); }
         s += `<rect x="${X - 14}" y="${ys + 4}" width="${span + 28}" height="${ye - ys - 8}" class="sym fillw"/>` + L(X - 14, ye - 4, X + span + 14, ys + 4, '', 'thin') +
           T(X - 8, ys + 18, '~', 'inbox') + T(X + span + 8, ye - 8, '~', 'inbox', 'end');
         s += label(ys + 16);
@@ -225,7 +235,7 @@
       }
       case 'sw2': {
         const x = X, a = ys + 6, b = ye - 6, l = x - 13, r = x + 13;
-        s += L(x, y, x, a, col(0)) + L(x, b, x, y + h, col(0));
+        s += L(x, y, x, a, col(0), LT) + L(x, b, x, y + h, col(0), LB);
         s += `<circle cx="${x}" cy="${a}" r="2" class="sym fillw"/>` + L(x, a, l + 1, a + 18, '', 'sym') + L(l, a + 18, l, b - 18, col(0)) + L(r, a + 18, r, b - 18, col(0)) +
           L(l - 3, a + 18, l + 3, a + 18, '', 'sym') + L(r - 3, a + 18, r + 3, a + 18, '', 'sym') + L(l - 3, b - 18, l + 3, b - 18, '', 'sym') + L(r - 3, b - 18, r + 3, b - 18, '', 'sym') +
           `<circle cx="${x}" cy="${b}" r="2" class="sym fillw"/>` + L(x, b, r - 1, b - 18, '', 'sym') +
@@ -237,8 +247,8 @@
       }
       case 'motor': case 'motor6': {
         const cx = X + span / 2, cy = y + STUB + 36, r = 22;
-        for (let p = 0; p < n; p++) { const x = X + p * PS; s += `<polyline points="${x},${y} ${x},${y + STUB + 4} ${cx + (x - cx) * 0.45},${cy - r + 2}" fill="none" stroke="${col(p)}"/>` + (C.termNums ? T(x - 3, y + STUB + 2, tt[p], 'tn', 'end') : ''); addTop(p); }
-        s += `<circle cx="${cx}" cy="${cy}" r="${r}" class="sym fillw"/>` + T(cx, cy + 1, 'M', 'motorM', 'middle') + T(cx, cy + 13, e.t === 'motor6' ? '3~ Y/Δ' : (n === 1 ? '1~' : '3~'), 'tn', 'middle');
+        for (let p = 0; p < n; p++) { const x = X + p * PS; s += `<polyline points="${x},${y} ${x},${y + STUB + 4} ${cx + (x - cx) * 0.45},${cy - r + 2}" fill="none" stroke="${col(p)}"${LT ? ' class="live"' : ''}/>` + (C.termNums ? T(x - 3, y + STUB + 2, tt[p], 'tn', 'end') : ''); addTop(p); }
+        s += `<circle cx="${cx}" cy="${cy}" r="${r}" class="sym fillw body"/>` + (st && st.on ? `<g class="spin" style="transform-origin:${cx}px ${cy}px"><path d="M${cx + r + 5},${cy} A${r + 5},${r + 5} 0 0 1 ${cx},${cy + r + 5}" class="livb" fill="none" stroke-width="2.5"/><path d="M${cx - 4},${cy + r + 1} L${cx},${cy + r + 5} L${cx - 4},${cy + r + 9}" class="livb" fill="none"/></g>` : '') + T(cx, cy + 1, 'M', 'motorM', 'middle') + T(cx, cy + 13, e.t === 'motor6' ? '3~ Y/Δ' : (n === 1 ? '1~' : '3~'), 'tn', 'middle');
         if (e.t === 'motor6') s += T(cx, cy + r + 13, 'W2 · U2 · V2', 'tn', 'middle');
         s += L(cx - r * 0.7, cy + r * 0.7, cx - r * 0.7 - 8, cy + r * 0.7 + 8, 'var(--w-pe)') + T(cx - r * 0.7 - 10, cy + r * 0.7 + 16, 'PE', 'tn', 'end');
         s += label(cy - 6);
@@ -246,10 +256,10 @@
       }
       case 'load': case 'vfdin': case 'meter': case 'spd': case 'short': {
         const bottom = y + (e.t === 'short' ? 22 : 30);
-        for (let p = 0; p < n; p++) { const x = X + p * PS; s += L(x, y, x, bottom, col(p)) + (C.termNums && e.t !== 'short' && e.t !== 'load' ? T(x - 3, y + 12, tt[p], 'tn', 'end') : ''); if (e.t !== 'short') addTop(p); else C.net.key(Tn, p); }
+        for (let p = 0; p < n; p++) { const x = X + p * PS; s += L(x, y, x, bottom, col(p), LT) + (C.termNums && e.t !== 'short' && e.t !== 'load' ? T(x - 3, y + 12, tt[p], 'tn', 'end') : ''); if (e.t !== 'short') addTop(p); else C.net.key(Tn, p); }
         if (e.t === 'load') { for (let p = 0; p < n; p++) { const x = X + p * PS; s += `<path d="M${x - 4},${bottom - 6} L${x},${bottom} L${x + 4},${bottom - 6}" class="sym"/>`; } s += (e.tag ? T(X - 4, bottom + 13, e.tag, 'tag') : '') + TW(X - 4, bottom + 25, e.lbl || '', 'lbl', 12 + n * 3, 10.5); }
         if (e.t === 'short') { s += L(X, bottom, X + span, bottom, col(0)) + `<circle cx="${X + span / 2}" cy="${bottom}" r="2.6" class="dot"/>` + T(X + span / 2, bottom + 14, e.lbl || 'Điểm sao', 'lbl', 'middle'); for (let p = 1; p < n; p++) C.net.wire(C.net.key(Tn, 0), C.net.key(Tn, p)); }
-        if (e.t === 'vfdin') s += `<rect x="${X - 18}" y="${bottom}" width="36" height="18" class="sym fillw"/>` + T(X, bottom + 12.5, (e.lbl || 'DI').slice(0, 6), 'inbox', 'middle') + (e.tag ? T(X + 22, bottom + 13, e.tag, 'tag') : '');
+        if (e.t === 'vfdin') s += `<rect x="${X - 18}" y="${bottom}" width="36" height="18" class="sym fillw body"/>` + T(X, bottom + 12.5, (e.lbl || 'DI').slice(0, 6), 'inbox', 'middle') + (e.tag ? T(X + 22, bottom + 13, e.tag, 'tag') : '');
         if (e.t === 'meter' || e.t === 'spd') {
           s += `<rect x="${X - 12}" y="${bottom}" width="${span + 24}" height="22" class="sym fillw"/>` + T(X + span / 2, bottom + 15, e.t === 'meter' ? 'kWh' : '', 'inbox', 'middle');
           if (e.t === 'spd') s += `<path d="M${X + span / 2 - 7},${bottom + 17} L${X + span / 2 + 5},${bottom + 5} m-4,0 h4 v4" class="sym"/>` + L(X + span / 2, bottom + 22, X + span / 2, bottom + 30, 'var(--w-pe)') + L(X + span / 2 - 8, bottom + 30, X + span / 2 + 8, bottom + 30, '', 'sym') + L(X + span / 2 - 5, bottom + 33, X + span / 2 + 5, bottom + 33, '', 'sym') + L(X + span / 2 - 2, bottom + 36, X + span / 2 + 2, bottom + 36, '', 'sym');
@@ -271,6 +281,11 @@
       }
     }
     if (e.links) e.links.forEach(l => C.net.links.push({ a: l[0], b: l[1], note: l[2] || '', sec: C.si }));
+    if (st) {
+      const clk = C.clk && C.clk.has(e._id);
+      const note = st.note ? T(tagX, ys - 3, '⏱ ' + st.note, 'simnote') : '';
+      s = `<g data-i="${e._id}" class="el${st.on ? ' on' : ''}${clk ? ' clk' : ''}">${clk ? `<rect x="${X - 30}" y="${y}" width="${span + 72}" height="${h}" class="hit"/>` : ''}${s}${note}</g>`;
+    }
     return s;
   }
 
@@ -294,18 +309,21 @@
     const yTopBus = p => y + 7 + p * BS, by0 = y + (m.ot ? 0 : bh);
     const innerH = m.h - (m.ot ? 0 : bh) - (m.ob ? 0 : bh), yBotBus = p => by0 + innerH + 7 + p * BS;
     const rail = nd._rail;
+    const ps = C.sim && nd._id != null ? (C.sim[nd._id] || {}) : {};
+    const lvT = ps.pin ? ' live' : '', lvB = ps.pout ? ' live' : '';
     if (!m.ot) for (let p = 0; p < n; p++) {
       const x1 = rail ? rail.x1 : spines[0] + p * PS, x2 = rail ? rail.x2 : spines[spines.length - 1] + p * PS;
-      s += L(x1, yTopBus(p), x2, yTopBus(p), col(p), rail ? 'rail' : '');
-      if (!rail) s += L(spines[0] + p * PS, y, spines[0] + p * PS, yTopBus(p), col(p));
+      s += L(x1, yTopBus(p), x2, yTopBus(p), col(p), ((rail ? 'rail' : '') + lvT).trim());
+      if (!rail) s += L(spines[0] + p * PS, y, spines[0] + p * PS, yTopBus(p), col(p), lvT.trim());
       if (rail) s += T(x1 - 4, yTopBus(p) + 3.5, C.sec.poles[p], 'railt', 'end');
-      spines.forEach((sp, b) => { s += L(sp + p * PS, yTopBus(p), sp + p * PS, by0, col(p)); if (spines.length > 1 || rail) s += `<circle cx="${sp + p * PS}" cy="${yTopBus(p)}" r="2.4" class="dot"/>`; });
+      spines.forEach((sp, b) => { s += L(sp + p * PS, yTopBus(p), sp + p * PS, by0, col(p), lvT.trim()); if (spines.length > 1 || rail) s += `<circle cx="${sp + p * PS}" cy="${yTopBus(p)}" r="2.4" class="dot"/>`; });
     }
     if (!m.ob) for (let p = 0; p < n; p++) {
       const r2 = nd._railB;
       const x1 = r2 ? r2.x1 : spines[0] + p * PS, x2 = r2 ? r2.x2 : spines[spines.length - 1] + p * PS;
-      s += L(x1, yBotBus(p), x2, yBotBus(p), col(p), r2 ? 'rail' : '');
-      if (!r2) s += L(spines[0] + p * PS, yBotBus(p), spines[0] + p * PS, y + m.h, col(p));
+      s += L(x1, yBotBus(p), x2, yBotBus(p), r2 ? wireColor(C.sec.kind, (C.sec.bpoles || C.sec.poles)[p], C.color) : col(p), r2 ? 'rail' : '');
+      if (!r2) s += L(spines[0] + p * PS, yBotBus(p), spines[0] + p * PS, y + m.h, col(p), lvB.trim());
+      if (lvB && !r2) s += L(spines[0] + p * PS, yBotBus(p), spines[spines.length - 1] + p * PS, yBotBus(p), '', 'live');
       if (r2) s += T(x1 - 4, yBotBus(p) + 3.5, C.sec.bpoles ? C.sec.bpoles[p] : C.sec.poles[p], 'railt', 'end');
       spines.forEach(sp => { if (spines.length > 1 || r2) s += `<circle cx="${sp + p * PS}" cy="${yBotBus(p)}" r="2.4" class="dot"/>`; });
     }
@@ -338,7 +356,7 @@
       placed.push({ sec, si, n, series, m, mergeT, mergeB, railT, railB, x, w, h });
       x += w; maxH = Math.max(maxH, h);
     });
-    const C0 = { net, color: opt.color, termNums: opt.termNums };
+    const C0 = { net, color: opt.color, termNums: opt.termNums, sim: opt.sim || null, clk: opt.clk || null };
     placed.forEach(P => {
       const { sec, si, n, series, m } = P;
       const C = Object.assign({}, C0, { sec, si });
@@ -348,14 +366,14 @@
       for (let p = 0; p < n; p++) { if (sec.top) net.rail(TOP, p, sec.poles[p]); if (sec.bottom) net.rail(BOT, p, (sec.bpoles || sec.poles)[p]); }
       body += `<g class="sec">` + T(P.x + 12, 34, sec.title || '', 'sect') + (si > 0 ? L(P.x, 18, P.x, maxH + 28, '', 'divider') : '');
       if (P.mergeT) series[0]._rail = { x1, x2 }; else if (sec.top) {
-        for (let p = 0; p < n; p++) { const c = wireColor(sec.kind, sec.poles[p], opt.color); body += L(x1, y + 7 + p * BS, x2, y + 7 + p * BS, c, 'rail') + T(x1 - 4, y + 10.5 + p * BS, sec.poles[p], 'railt', 'end') + L(X + p * PS, y + 7 + p * BS, X + p * PS, y + P.railT, c) + `<circle cx="${X + p * PS}" cy="${y + 7 + p * BS}" r="2.4" class="dot"/>`; }
+        for (let p = 0; p < n; p++) { const c = wireColor(sec.kind, sec.poles[p], opt.color); body += L(x1, y + 7 + p * BS, x2, y + 7 + p * BS, c, opt.sim ? 'rail live' : 'rail') + T(x1 - 4, y + 10.5 + p * BS, sec.poles[p], 'railt', 'end') + L(X + p * PS, y + 7 + p * BS, X + p * PS, y + P.railT, c, opt.sim ? 'live' : '') + `<circle cx="${X + p * PS}" cy="${y + 7 + p * BS}" r="2.4" class="dot"/>`; }
         y += P.railT;
       }
       if (P.mergeB) series[series.length - 1]._railB = { x1, x2 };
       const yEnd = y + m.h;
       body += draw(series, X, y, n, TOP, BOT, C);
       if (sec.bottom && !P.mergeB) {
-        for (let p = 0; p < n; p++) { const c = wireColor(sec.kind, sec.poles[p], opt.color), yy = yEnd + 7 + p * BS; body += L(x1, yy, x2, yy, c, 'rail') + T(x1 - 4, yy + 3.5, (sec.bpoles || sec.poles)[p], 'railt', 'end') + L(X + p * PS, yEnd, X + p * PS, yy, c) + `<circle cx="${X + p * PS}" cy="${yy}" r="2.4" class="dot"/>`; }
+        for (let p = 0; p < n; p++) { const c = wireColor(sec.kind, (sec.bpoles || sec.poles)[p], opt.color), yy = yEnd + 7 + p * BS; body += L(x1, yy, x2, yy, c, 'rail') + T(x1 - 4, yy + 3.5, (sec.bpoles || sec.poles)[p], 'railt', 'end') + L(X + p * PS, yEnd, X + p * PS, yy, c) + `<circle cx="${X + p * PS}" cy="${yy}" r="2.4" class="dot"/>`; }
       }
       body += `</g>`;
     });
@@ -382,9 +400,12 @@ line.sym{stroke:var(--ink,#1b1f23)}.mech{stroke:var(--ink,#1b1f23);stroke-width:
 text{fill:var(--ink,#1b1f23);font-size:10px}.tag{font-weight:700;font-size:12px}.lbl{font-size:9.5px;fill:var(--ink2,#4a5258)}.tn{font-size:8.5px;fill:var(--ink2,#4a5258)}
 .inbox{font-size:9px;font-weight:600}.motorM{font-size:15px;font-weight:700;text-anchor:middle}.railt{font-weight:700;font-size:10.5px}.sect{font-weight:700;font-size:13px;letter-spacing:.02em}
 .grid{font-size:8px;fill:var(--ink2,#4a5258)}.tbt{font-weight:700;font-size:12px}.tbs{font-size:9.5px}
+.live{stroke:#14b866 !important;stroke-width:3.2}.livb{stroke:#14b866 !important;stroke-width:2.4}
+.on .body{fill:#ffe48a}.on .bulb{fill:#ffd23f}.on rect.body{fill:#a7ecc2}.clk{cursor:pointer}.clk:hover .sym{stroke:#c47f00}.hit{fill:transparent}
+.simnote{font-size:10px;font-weight:700;fill:#c47f00}.spin{animation:xvmspin 1.2s linear infinite}
 .wn rect{fill:var(--paper,#fff);stroke:var(--accent,#c47f00);stroke-width:1}.wn text{font-size:8.5px;font-weight:700;fill:var(--accent,#c47f00)}`;
 
-  const SCOPED_CSS = SVG_CSS.replace(/\n/g, '').split('}').filter(r => r.trim()).map(r => { const i = r.indexOf('{'); return r.slice(0, i).split(',').map(s => '.sheet ' + s.trim()).join(',') + r.slice(i) + '}'; }).join('');
+  const SCOPED_CSS = SVG_CSS.replace(/\n/g, '').split('}').filter(r => r.trim()).map(r => { const i = r.indexOf('{'); return r.slice(0, i).split(',').map(s => '.sheet ' + s.trim()).join(',') + r.slice(i) + '}'; }).join('') + '@keyframes xvmspin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.sheet .spin{animation:none}}';
 
   // ---------- validate AI/custom model ----------
   function sanitize(model) {

@@ -96,6 +96,14 @@
     photocell: { name: 'Cảm biến ánh sáng', sch: 'Acti9 IC (photocell)', alt: 'Theben, Kawasan' },
     lc: { name: 'Contactor modul', sch: 'Acti9 iCT', abb: 'ESB / EN', sie: '5TT5' },
     switch: { name: 'Công tắc / ổ cắm', sch: 'AvatarOn / Zencelo', abb: 'Zenit', alt: 'Panasonic, Sino' },
+    pir: { name: 'Cảm biến chuyển động', sch: 'Argus (cảm biến hiện diện)', alt: 'Kawasan, Panasonic, Sino' },
+    smoke: { name: 'Đầu báo khói / gas', alt: 'Hochiki, Formosa, Horing (loại có ngõ ra rơ-le)' },
+    valve: { name: 'Van điện từ', alt: 'SMC (SY/VF), Festo, Airtac (4V), CKD; van nước: Unid, ODE' },
+    heater: { name: 'Bình nóng lạnh / tải nhiệt', alt: 'Ariston, Ferroli, Rossi, Picenza' },
+    fan: { name: 'Quạt / bơm 1 pha', alt: 'Panasonic, KDK, Mitsubishi, Pentax, Wilo' },
+    dimmer: { name: 'Dimmer / hộp số quạt', sch: 'AvatarOn (dimmer)', alt: 'Panasonic, Sino' },
+    impulse: { name: 'Rơ-le xung (bật/tắt nhiều nơi)', sch: 'Acti9 iTL', abb: 'E290', sie: '5TT4 (rơ-le xung)', alt: 'Finder 26 series' },
+    limit: { name: 'Công tắc hành trình', sch: 'Telemecanique OsiSense XC (XCK)', sie: 'SIRIUS 3SE5', omr: 'D4N / WL', alt: 'Autonics, Kacon' },
     estop: { name: 'Nút dừng khẩn', sch: 'Harmony XB5AS / XB4BS', abb: 'Modular MPET (nấm)', sie: 'SIRIUS ACT 3SU1 (nấm)', omr: 'A22NE / A22E' },
     level: { name: 'Phao / rơ-le mực nước', sch: 'Zelio RM35LM (rơ-le mực nước)', omr: '61F (rơ-le mực nước)', alt: 'Phao điện thông dụng, điện cực inox' },
     pressure: { name: 'Công tắc áp suất', sch: 'Telemecanique XMLP / XML', alt: 'Danfoss KP, Kita' },
@@ -158,9 +166,29 @@
     'Tín hiệu ngoài (PLC/BMS)': { act: '', lbl: 'Lệnh PLC/BMS', type: 'relay', spec: 'Tiếp điểm khô từ PLC/BMS hoặc rơ-le trung gian', note: 'Tín hiệu ngoài phải là tiếp điểm khô; nếu là 24 VDC thì qua rơ-le trung gian.' }
   };
   const P_AUTO = { k: 'auto', label: 'Chế độ TAY/TỰ ĐỘNG theo', type: 'sel', def: 'Không', opts: ['Không', ...Object.keys(AUTO)] };
+  const STOP = {
+    'Cảm biến': { act: 'sensor', lbl: 'Có vật → dừng', type: 'sensor_photo', spec: 'Cảm biến quang/tiệm cận ngõ ra rơ-le 24–240 V (hoặc cảm biến 24 VDC + rơ-le trung gian 220 VAC); dùng tiếp điểm NC: phát hiện vật → mở', step: 'Cho vật chạm/che cảm biến B3 khi đang chạy: K1 phải nhả ngay. Khi vật còn trước cảm biến thì nhấn Chạy không chạy được (an toàn) — dời vật rồi chạy lại.' },
+    'Công tắc hành trình': { act: 'limit', lbl: 'Chạm cuối → dừng', type: 'limit', spec: 'Công tắc hành trình 1NO+1NC, IP65, dùng tiếp điểm NC (bị tác động → mở)', step: 'Tác động bằng tay vào công tắc hành trình B3 khi đang chạy: K1 phải nhả. Chỉnh vị trí cữ chặn để dừng đúng điểm.' },
+    'Phao (mực đầy)': { act: 'float', lbl: 'Đầy → dừng', type: 'level', spec: 'Phao điện / rơ-le mực nước, tiếp điểm NC mở khi đầy', step: 'Nâng phao lên mức đầy khi đang chạy: K1 phải nhả.' },
+    'Công tắc áp suất (áp đủ)': { act: 'sensor', lbl: 'Áp đủ → dừng', type: 'pressure', spec: 'Công tắc áp suất, tiếp điểm NC mở khi đạt áp đặt', step: 'Tăng áp tới ngưỡng đặt: K1 phải nhả.' },
+    'Rơ-le nhiệt độ': { act: 'sensor', lbl: 'Đạt nhiệt → dừng', type: 'temp', spec: 'Bộ điều khiển nhiệt độ ngõ ra rơ-le, dùng tiếp điểm NC mở khi đạt ngưỡng', step: 'Mô phỏng đạt nhiệt độ đặt: K1 phải nhả.' },
+    'Hết thời gian chạy': { act: 'timer', lbl: '', type: 'timer', spec: '', step: '' }
+  };
+  const P_STOP = { k: 'stopBy', label: 'Tự dừng khi', type: 'sel', def: 'Không', opts: ['Không', ...Object.keys(STOP)] };
+  const P_TRUN = { k: 'tRun', label: 'Thời gian chạy (khi tự dừng theo thời gian)', type: 'num', def: 60, min: 1, max: 86400, step: 1, unit: 's' };
+  const STARTBY = { 'Cảm biến': { act: 'sensor', lbl: 'Có vật → chạy', type: 'sensor_photo', spec: 'Cảm biến ngõ ra rơ-le, tiếp điểm NO đóng khi phát hiện vật (song song nút Chạy)' },
+    'Công tắc hành trình': { act: 'limit', lbl: 'Tác động → chạy', type: 'limit', spec: 'Công tắc hành trình, tiếp điểm NO (song song nút Chạy)' } };
+  const P_STARTBY = { k: 'startBy', label: 'Khởi động thêm bằng', type: 'sel', def: 'Chỉ nút nhấn', opts: ['Chỉ nút nhấn', ...Object.keys(STARTBY)] };
+  const fmtT = s => s >= 3600 && s % 3600 === 0 ? s / 3600 + ' giờ' : s >= 60 && s % 60 === 0 ? s / 60 + ' phút' : s + ' s';
+  function stopItem(p) {
+    const st = STOP[p.stopBy]; if (!st) return [];
+    if (p.stopBy === 'Hết thời gian chạy') return [{ t: 'nc', act: 'timer', tag: 'KT2', lbl: `Chạy ${fmtT(p.tRun)} → dừng` }];
+    return [{ t: 'nc', act: st.act, tag: 'B3', lbl: st.lbl }];
+  }
   const P_HORN = { k: 'horn', label: 'Còi báo trước khi chạy (0 = không)', type: 'num', def: 0, min: 0, max: 30, step: 1, unit: 's' };
   function startBlock(p, holdTag) {
-    const manual = { par: [[{ t: 'no', act: 'push', tag: 'S1', lbl: 'Chạy' }], [{ t: 'no', tag: holdTag, lbl: 'Tự giữ' }]] };
+    const sb = STARTBY[p.startBy];
+    const manual = { par: [[{ t: 'no', act: 'push', tag: 'S1', lbl: 'Chạy' }], ...(sb ? [[{ t: 'no', act: sb.act, tag: 'B2', lbl: sb.lbl }]] : []), [{ t: 'no', tag: holdTag, lbl: 'Tự giữ' }]] };
     const a = AUTO[p.auto];
     if (!a) return [manual];
     const b1 = { t: 'no', tag: 'B1', lbl: a.lbl }; if (a.act) b1.act = a.act;
@@ -172,6 +200,9 @@
     if (p.estop === 'Có') d.push({ tag: 'S00', type: 'estop', spec: 'Nút dừng khẩn nấm đỏ Ø40 trên nền vàng, nhấn giữ – xoay nhả, 1NC mở cưỡng bức (IEC 60947-5-5)' });
     const a = AUTO[p.auto];
     if (a) d.push({ tag: 'S2', type: 'sel', spec: 'Công tắc xoay 3 vị trí TAY–0–TỰ ĐỘNG, 2NO (13-14, 23-24)' }, { tag: 'B1', type: a.type, spec: a.spec });
+    const sb = STARTBY[p.startBy]; if (sb) d.push({ tag: 'B2', type: sb.type, spec: sb.spec });
+    const st = STOP[p.stopBy];
+    if (st) d.push(p.stopBy === 'Hết thời gian chạy' ? { tag: 'KT2', type: 'timer', spec: `Rơ-le thời gian on-delay 220 VAC, đặt ${fmtT(p.tRun)}; dùng tiếp điểm NC trễ mở (15-16)` } : { tag: 'B3', type: st.type, spec: st.spec });
     if (p.horn > 0) d.push({ tag: 'KA', type: 'relay', spec: 'Rơ-le trung gian cuộn 220 VAC, 2NO' }, { tag: 'KT', type: 'timer', spec: `Rơ-le thời gian on-delay 220 VAC, đặt ${p.horn} s` }, { tag: 'HA', type: 'horn', spec: 'Còi hoặc còi + đèn chớp 220 VAC, ≥ 85 dB' });
     return d;
   }
@@ -179,10 +210,13 @@
     const s = [];
     if (p.estop === 'Có') s.push('Nhấn nấm dừng khẩn S00 khi đang chạy: contactor phải nhả ngay; xoay nhả nấm rồi phải nhấn Chạy lại mới chạy (không tự chạy lại).');
     if (AUTO[p.auto]) s.push(`Thử chế độ: S2 ở TAY → điều khiển bằng nút; S2 ở TỰ ĐỘNG → động cơ chạy/dừng theo ${p.auto.toLowerCase()} (B1), nút Dừng S0 vẫn dừng được.`);
+    if (STARTBY[p.startBy]) s.push(`Tác động ${p.startBy.toLowerCase()} B2 khi đang dừng: động cơ chạy và tự giữ.`);
+    const st = STOP[p.stopBy];
+    if (st) s.push(p.stopBy === 'Hết thời gian chạy' ? `Nhấn Chạy: động cơ chạy ${fmtT(p.tRun)} rồi tự dừng (KT2 hút cùng K1, hết giờ tiếp điểm KT2 mở).` : st.step);
     if (p.horn > 0) s.push(`Nhấn Chạy: còi HA kêu ${p.horn} s rồi động cơ mới chạy, còi tắt khi K1 hút (tiếp điểm NC của K1).`);
     return s;
   }
-  function featNotes(p) { const a = AUTO[p.auto]; return [...(a ? [a.note] : []), ...(p.estop === 'Có' ? ['Dừng khẩn cấp loại 0 (cắt ngay nguồn động cơ). Với máy có yêu cầu an toàn cao (PL d/e) dùng rơ-le an toàn và nút 2 kênh.'] : [])]; }
+  function featNotes(p) { const a = AUTO[p.auto]; return [...(a ? [a.note] : []), ...(/Cảm biến/.test(p.stopBy + p.startBy) ? ['Cảm biến 3 dây 24 VDC không đấu thẳng vào mạch 220 VAC: chọn loại ngõ ra rơ-le hoặc thêm rơ-le trung gian.'] : []), ...(p.estop === 'Có' ? ['Dừng khẩn cấp loại 0 (cắt ngay nguồn động cơ). Với máy có yêu cầu an toàn cao (PL d/e) dùng rơ-le an toàn và nút 2 kênh.'] : [])]; }
 
   // ---------- mạch mẫu ----------
   const TPL = [];
@@ -190,16 +224,17 @@
   // 1. Khởi động trực tiếp
   TPL.push({
     id: 'dol', cat: 'motor', name: 'Khởi động trực tiếp (DOL)', desc: 'Contactor + rơ-le nhiệt, nút Start/Stop, tự giữ, đèn báo chạy/lỗi',
-    params: [P.kW, P.U, P.cos, P.L, P.ins, P.kd, P.ik, P_ESTOP, P_AUTO, P_HORN],
+    params: [P.kW, P.U, P.cos, P.L, P.ins, P.kd, P.ik, P_ESTOP, P_STARTBY, P_STOP, P_TRUN, P_AUTO, P_HORN],
     build(p) {
       const m = motorBase(p), cb = cbFor(m.In, 3, p.ik, { curve: 'D' }), km = kmFor(m.In), ol = olFor(m.In);
       const cab = cable({ Icb: cb.In, Ib: m.In, L: p.L, U: p.U, phase: 3, cos: m.cos, ins: p.ins, k: p.kd, minS: 2.5 });
       const olTxt = ol ? `${ol[0]}–${ol[1]} A` : 'điện tử';
-      const horn = p.horn > 0, run = { par: [[{ t: 'coil', tag: 'K1' }], [{ t: 'lamp', tag: 'H1', lbl: 'Đèn chạy (xanh)' }]] };
+      const horn = p.horn > 0, tstop = p.stopBy === 'Hết thời gian chạy';
+      const run = { par: [[{ t: 'coil', tag: 'K1' }], ...(tstop ? [[{ t: 'tcoil', tag: 'KT2', lbl: `Đếm ${fmtT(p.tRun)}` }]] : []), [{ t: 'lamp', tag: 'H1', lbl: 'Đèn chạy (xanh)' }]] };
       const loads = horn ? [{ par: [[{ par: [[{ t: 'coil', tag: 'KA', lbl: 'Lệnh chạy' }], [{ t: 'tcoil', tag: 'KT', lbl: `Báo trước ${p.horn} s` }]] }],
         [{ t: 'no', act: 'timer', tag: 'KT', lbl: 'Hết giờ' }, run],
         [{ t: 'no', tag: 'KA', tt: ['23'], bt: ['24'] }, { t: 'nc', tag: 'K1', lbl: 'Tắt còi khi chạy' }, { t: 'horn', tag: 'HA', lbl: 'Còi báo' }]] }] : [run];
-      const feats = [p.estop === 'Có' ? 'dừng khẩn' : '', AUTO[p.auto] ? 'tự động theo ' + p.auto.toLowerCase() : '', horn ? `còi báo ${p.horn} s` : ''].filter(Boolean);
+      const feats = [STARTBY[p.startBy] ? 'chạy bằng ' + p.startBy.toLowerCase() : '', STOP[p.stopBy] ? (tstop ? `tự dừng sau ${fmtT(p.tRun)}` : 'dừng theo ' + p.stopBy.toLowerCase()) : '', p.estop === 'Có' ? 'dừng khẩn' : '', AUTO[p.auto] ? 'tự động theo ' + p.auto.toLowerCase() : '', horn ? `còi báo ${p.horn} s` : ''].filter(Boolean);
       return {
         title: `Khởi động trực tiếp động cơ ${p.kW} kW${feats.length ? ' — ' + feats.join(', ') : ''}`,
         sections: [
@@ -209,7 +244,7 @@
           { title: 'Mạch điều khiển 220 VAC', kind: 'ac', poles: ['L'], bpoles: ['N'], top: true, bottom: true, net: [
             { t: 'cb', tag: 'F2', lbl: 'MCB 1P 2A' },
             { par: [
-              [{ t: 'nc', act: 'thermal', tag: 'F1', lbl: 'Quá tải' }, { t: 'nc', act: 'push', tag: 'S0', lbl: 'Dừng' }, ...estopItem(p),
+              [{ t: 'nc', act: 'thermal', tag: 'F1', lbl: 'Quá tải' }, { t: 'nc', act: 'push', tag: 'S0', lbl: 'Dừng' }, ...estopItem(p), ...stopItem(p),
                 ...startBlock(p, horn ? 'KA' : 'K1'), ...loads],
               [{ t: 'no', act: 'thermal', tag: 'F1', lbl: 'Báo lỗi' }, { t: 'lamp', tag: 'H2', lbl: 'Đèn lỗi (đỏ)' }]] }] }
         ],
@@ -251,13 +286,13 @@
   // 2. Đảo chiều
   TPL.push({
     id: 'rev', cat: 'motor', name: 'Đảo chiều quay', desc: 'Hai contactor thuận/nghịch, khoá chéo điện + khoá nút nhấn',
-    params: [P.kW, P.U, P.cos, P.L, P.ins, P.kd, P.ik, P_ESTOP],
+    params: [P.kW, P.U, P.cos, P.L, P.ins, P.kd, P.ik, P_ESTOP, { k: 'lim', label: 'Công tắc hành trình 2 đầu', type: 'sel', def: 'Không', opts: ['Không', 'Có'] }],
     build(p) {
       const m = motorBase(p), cb = cbFor(m.In, 3, p.ik, { curve: 'D' }), km = kmFor(m.In), ol = olFor(m.In);
       const cab = cable({ Icb: cb.In, Ib: m.In, L: p.L, U: p.U, phase: 3, cos: m.cos, ins: p.ins, k: p.kd, minS: 2.5 });
       const olTxt = ol ? `${ol[0]}–${ol[1]} A` : 'điện tử';
       return {
-        title: `Đảo chiều động cơ ${p.kW} kW`,
+        title: `Đảo chiều động cơ ${p.kW} kW${p.lim === 'Có' ? ' — hành trình 2 đầu' : ''}${p.estop === 'Có' ? ', dừng khẩn' : ''}`,
         sections: [
           { title: 'Mạch động lực', kind: 'power', poles: ['L1', 'L2', 'L3'], top: true, net: [
             { t: 'cb', tag: 'Q1', lbl: cb.short },
@@ -266,8 +301,8 @@
           { title: 'Mạch điều khiển 220 VAC', kind: 'ac', poles: ['L'], bpoles: ['N'], top: true, bottom: true, net: [
             { t: 'cb', tag: 'F2', lbl: 'MCB 1P 2A' }, { t: 'nc', act: 'thermal', tag: 'F1', lbl: 'Quá tải' }, { t: 'nc', act: 'push', tag: 'S0', lbl: 'Dừng' }, ...estopItem(p),
             { par: [
-              [{ par: [[{ t: 'no', act: 'push', tag: 'S1', lbl: 'Thuận' }], [{ t: 'no', tag: 'K1', lbl: 'Tự giữ' }]] }, { t: 'nc', act: 'push', tag: 'S2', lbl: 'Khoá nút' }, { t: 'nc', tag: 'K2', lbl: 'Khoá chéo' }, { t: 'coil', tag: 'K1' }],
-              [{ par: [[{ t: 'no', act: 'push', tag: 'S2', lbl: 'Nghịch' }], [{ t: 'no', tag: 'K2', lbl: 'Tự giữ' }]] }, { t: 'nc', act: 'push', tag: 'S1', lbl: 'Khoá nút' }, { t: 'nc', tag: 'K1', lbl: 'Khoá chéo' }, { t: 'coil', tag: 'K2' }]] }] }
+              [{ par: [[{ t: 'no', act: 'push', tag: 'S1', lbl: 'Thuận' }], [{ t: 'no', tag: 'K1', lbl: 'Tự giữ' }]] }, { t: 'nc', act: 'push', tag: 'S2', lbl: 'Khoá nút' }, { t: 'nc', tag: 'K2', lbl: 'Khoá chéo' }, ...(p.lim === 'Có' ? [{ t: 'nc', act: 'limit', tag: 'B1', lbl: 'Hết hành trình thuận' }] : []), { t: 'coil', tag: 'K1' }],
+              [{ par: [[{ t: 'no', act: 'push', tag: 'S2', lbl: 'Nghịch' }], [{ t: 'no', tag: 'K2', lbl: 'Tự giữ' }]] }, { t: 'nc', act: 'push', tag: 'S1', lbl: 'Khoá nút' }, { t: 'nc', tag: 'K1', lbl: 'Khoá chéo' }, ...(p.lim === 'Có' ? [{ t: 'nc', act: 'limit', tag: 'B2', lbl: 'Hết hành trình nghịch' }] : []), { t: 'coil', tag: 'K2' }]] }] }
         ],
         devices: [
           { tag: 'Q1', type: cb.type, spec: cb.spec },
@@ -275,7 +310,7 @@
           { tag: 'F1', type: 'overload', spec: `Dải ${olTxt}, chỉnh ${r1(m.In)} A` },
           { tag: 'F2', type: 'mcb', spec: 'MCB 1P 2A' },
           { tag: 'S0', type: 'pb', spec: 'Nút đỏ 1NC' }, { tag: 'S1, S2', type: 'pb', spec: 'Nút xanh 1NO + 1NC (13-14, 21-22)', qty: 2 },
-          { tag: 'W1', type: 'cable', spec: `${cabTxt(cab, p.ins + ' 4 lõi')}, ${p.L} m, ΔU ≈ ${cab.dU}%` }, ...featDev(p)
+          { tag: 'W1', type: 'cable', spec: `${cabTxt(cab, p.ins + ' 4 lõi')}, ${p.L} m, ΔU ≈ ${cab.dU}%` }, ...featDev(p), ...(p.lim === 'Có' ? [{ tag: 'B1, B2', type: 'limit', spec: 'Công tắc hành trình 1NC mỗi đầu (lên/xuống hoặc tiến/lùi), IP65', qty: 2 }] : [])
         ],
         calcs: [['In', `${r1(m.In)} A`], ['CB Q1', `${cb.In} A`], ['K1, K2', `${km} A mỗi cái`], ['Cáp', `${cab.S} mm², Iz = ${cab.Iz} A, ΔU = ${cab.dU}%`]],
         steps: [
@@ -283,7 +318,7 @@
           'Đấu động lực: đầu vào K1 và K2 song song (1-3-5); đầu ra K1 đi thẳng, đầu ra K2 đảo L1↔L3 rồi chập với đầu ra K1 tại F1.',
           'Khoá chéo điện: NC của K2 (21-22) nối tiếp cuộn K1, NC của K1 nối tiếp cuộn K2. Khoá nút: NC của S2 trong nhánh K1 và ngược lại.',
           ...CTRL_STEPS(['Nhấn S1 → K1 hút; nhấn S2 lúc đang chạy → K1 nhả, K2 không được hút cùng lúc. Kiểm tra không bao giờ K1 và K2 cùng hút.',
-            'Với tải quán tính lớn, chờ động cơ dừng hẳn mới đảo chiều (có thể thêm timer).'])
+            'Với tải quán tính lớn, chờ động cơ dừng hẳn mới đảo chiều (có thể thêm timer).', ...(p.lim === 'Có' ? ['Chạy thuận tới cuối: B1 bị tác động → K1 nhả, chỉ chạy nghịch được. Tương tự B2 ở đầu kia. Với cầu trục/palang nên thêm hành trình cuối (cắt động lực) dự phòng.'] : [])])
         ],
         notes: ['Không có khoá chéo sẽ ngắn mạch 2 pha khi K1, K2 cùng hút — bắt buộc khoá cả điện và cơ khí.', ...featNotes(p), ...SAFETY]
       };

@@ -48,17 +48,69 @@
     store.set('tpl', S.tpl);
     drawSheet(true);
   }
-  function drawSheet(fit) {
+  function drawSheet(fit, sheetOnly) {
     const r = S.result; if (!r) return;
     let out;
-    try { out = E.render({ title: r.title, sections: r.sections }, { color: $('oColor').checked, termNums: $('oTerm').checked, wireNums: $('oWire').checked, date: today() }); }
+    if (S.simOn && (!S.sim || S.sim.model !== r)) { S.sim = new window.CircuitSim(r); }
+    const simOpt = S.simOn && S.sim ? { sim: S.sim.st, clk: new Set(S.sim.controls.flatMap(c => c.ids)) } : {};
+    try { out = E.render({ title: r.title, sections: r.sections }, Object.assign({ color: $('oColor').checked, termNums: $('oTerm').checked, wireNums: $('oWire').checked, date: today() }, simOpt)); }
     catch (e) { console.error(e); $('viewer').textContent = 'Không vẽ được sơ đồ này. Hãy thử mô tả lại.'; return; }
     S.render = out;
     $('title').textContent = r.title;
     $('viewer').innerHTML = out.svg;
     if (fit || !S.zoom) fitZoom(); else applyZoom();
-    drawPane();
+    if (S.simOn) drawSimPanel();
+    if (!sheetOnly) drawPane();
   }
+
+  // ---------- chạy thử ----------
+  function drawSimPanel() {
+    const sim = S.sim; if (!sim) return;
+    $('simCtrls').innerHTML = sim.controls.map((c, i) => `<button type="button" class="cbtn k-${c.kind}${sim.isActive(c) ? ' act' : ''}" data-c="${i}"><b>${esc(c.label)}</b><span>${esc(sim.stateText(c))}</span></button>`).join('') || '<p class="hint">Mạch này không có ngõ vào để thao tác.</p>';
+    $('simOuts').innerHTML = sim.outputs().map(o => `<span class="oc${o.on ? ' on' : ''}"><i></i>${esc(o.tag)}${o.lbl ? ' · ' + esc(o.lbl) : ''}${o.note ? ' · ⏱ ' + esc(o.note) : ''}</span>`).join('');
+    $('simLog').innerHTML = sim.log.slice(0, 14).map(l => `<li><span>${esc(fmtClock(l.t))}</span> ${esc(l.msg)}</li>`).join('') || '<li><span>—</span> Chưa có thao tác</li>';
+  }
+  const fmtClock = t => { t = Math.floor(t); return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
+  function simRedraw() { drawSheet(false, true); }
+  function setSim(on) {
+    S.simOn = on; $('simBtn').setAttribute('aria-pressed', on); $('simBtn').textContent = on ? '■ Đang chạy thử' : '▶ Chạy thử';
+    $('simPanel').hidden = !on;
+    if (on) { S.sim = new window.CircuitSim(S.result); S.sim.addLog('Bắt đầu chạy thử — nguồn đã đóng'); }
+    else S.sim = null;
+    drawSheet(false, true);
+    if (on) $('simPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  let pressed = null;
+  function ctrlDown(c) {
+    if (!S.sim) return;
+    const key = S.sim.keyOfControl(c);
+    if (c.kind === 'push') { pressed = { key, c }; S.sim.act(key, 'push', true); }
+    else S.sim.act(key, c.kind);
+    simRedraw();
+  }
+  function ctrlUp() { if (pressed && S.sim) { S.sim.act(pressed.key, 'push', false); pressed = null; simRedraw(); } }
+  $('simBtn').onclick = () => setSim(!S.simOn);
+  $('simStop').onclick = () => setSim(false);
+  $('simReset').onclick = () => { if (S.simOn) { S.sim = new window.CircuitSim(S.result); S.sim.addLog('Đặt lại'); simRedraw(); } };
+  $('simCtrls').addEventListener('pointerdown', e => { const b = e.target.closest('[data-c]'); if (!b || !S.sim) return; e.preventDefault(); ctrlDown(S.sim.controls[+b.dataset.c]); });
+  $('simCtrls').addEventListener('keydown', e => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { const b = e.target.closest('[data-c]'); if (b && S.sim) { e.preventDefault(); ctrlDown(S.sim.controls[+b.dataset.c]); } } });
+  $('simCtrls').addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') ctrlUp(); });
+  $('viewer').addEventListener('pointerdown', e => {
+    if (!S.simOn || !S.sim) return;
+    const g = e.target.closest('g.clk'); if (!g) return;
+    const id = +g.dataset.i; const c = S.sim.controls.find(x => x.ids.includes(id)); if (!c) return;
+    e.preventDefault();
+    if (c.key.startsWith('sw:') || S.sim.inputKey(S.sim.els.find(x => x._id === id)) === 'sw2') {
+      const el = S.sim.els.find(x => x._id === id);
+      if (el && el.t === 'sw2') { const r = g.getBoundingClientRect(); const key = (e.clientY - r.top) < r.height / 2 ? 'sw:' + el.ttag : 'sw:' + el.btag; S.sim.act(key, 'tog'); simRedraw(); return; }
+    }
+    ctrlDown(c);
+  });
+  ['pointerup', 'pointercancel'].forEach(ev => window.addEventListener(ev, ctrlUp));
+  setInterval(() => {
+    if (!S.simOn || !S.sim || !S.sim.timersRunning()) return;
+    S.sim.tick(0.2 * (+$('simSpeed').value || 1)); simRedraw();
+  }, 200);
   function fitZoom() { const vw = $('viewer').clientWidth - 30; S.zoom = Math.max(0.2, Math.min(1.4, vw / S.render.W)); applyZoom(); }
   function applyZoom() { const svg = $('viewer').querySelector('svg'); if (!svg) return; svg.setAttribute('width', Math.round(S.render.W * S.zoom)); svg.setAttribute('height', Math.round(S.render.H * S.zoom)); }
 
@@ -142,7 +194,7 @@
 
   // ---------- AI ----------
   let sample = null;
-  const AI_EX = ['Băng tải 3 kW, có dừng khẩn và còi báo trước khi chạy 5 giây', 'Bơm nước 5,5 kW chế độ tay/tự động theo phao', 'Bơm tăng áp 4 kW chạy theo công tắc áp suất, cáp dài 80 m', 'Động cơ 30 kW khởi động sao tam giác, có dừng khẩn', 'Quạt hút 7,5 kW biến tần 2 cấp tốc độ', 'Tủ phân phối 5 lộ: 30, 22, 15, 7.5, 5.5 kW', 'Chiếu sáng xưởng 12 kW tự động theo giờ và cảm biến ánh sáng', 'PLC 6 cảm biến NPN, 3 contactor'];
+  const AI_EX = ['Phòng ngủ có 2 đèn, quạt trần, 3 ổ cắm và bình nóng lạnh', 'Khi có người và trời tối thì đèn hành lang sáng', 'Bấm nút đèn cầu thang sáng 3 phút rồi tự tắt', 'Cảm biến có vật thì van khí nén đẩy xi lanh, sau 2 giây đèn báo sáng', 'Băng tải: nhấn Start chạy, Stop dừng, cuối băng có vật thì dừng, có đèn báo chạy', 'Khi có khói thì còi kêu và đèn cảnh báo sáng', 'Bơm 4 kW khi mực nước thấp thì chạy, đầy thì dừng', 'Động cơ 30 kW khởi động sao tam giác, có dừng khẩn', 'Tủ phân phối 5 lộ: 30, 22, 15, 7.5, 5.5 kW'];
   function aiPrompt(text) {
     const tplList = Lb.TPL.map(t => `- ${t.id}: ${t.name} — tham số: ${t.params.map(d => `${d.k} (${d.label}${d.unit ? ', ' + d.unit : ''}${d.opts ? ', chọn: ' + d.opts.join('/') : ''}; mặc định ${d.def})`).join('; ')}`).join('\n');
     const ex = JSON.stringify({ title: 'Khởi động trực tiếp 7.5 kW', sections: tplById('dol').build(curParams(tplById('dol'))).sections });
@@ -203,14 +255,16 @@ YÊU CẦU CỦA NGƯỜI DÙNG: ${text}`;
     $('aiReply').innerHTML = ''; $('aiStatus').className = 'status';
     const r = window.CircuitNLP.parse(text);
     if (r.error) { $('aiStatus').className = 'status err'; $('aiStatus').textContent = r.error; return; }
-    const t = applyTemplate(r.tpl, r.params, true);
+    if (r.custom) { S.result = Object.assign({ source: 'rules' }, r.custom); S.ai = true; drawCats(); drawSheet(true); }
+    else applyTemplate(r.tpl, r.params, true);
     $('aiStatus').textContent = '';
     const box = document.createElement('div'); box.className = 'reply';
     const add = (title, items) => { if (!items.length) return; const b = document.createElement('b'); b.textContent = title; box.appendChild(b); const ul = document.createElement('ul'); items.forEach(x => { const li = document.createElement('li'); li.textContent = x; ul.appendChild(li); }); box.appendChild(ul); };
     add('Đã hiểu', r.got);
     add('Chưa nói rõ — dùng giá trị mặc định', r.dft);
     add('Lưu ý', r.notes);
-    const btn = document.createElement('button'); btn.className = 'btn ghost'; btn.textContent = 'Chỉnh thông số chi tiết'; btn.onclick = () => setMode('tpl'); box.appendChild(btn);
+    const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = r.custom ? 'Hiểu chưa đúng? Tách mỗi ý một vế bằng dấu phẩy, theo mẫu “khi … thì … bật/tắt”, rồi bấm Vẽ sơ đồ lại.' : 'Hiểu chưa đúng? Viết rõ điều kiện theo mẫu “khi … thì chạy”, “khi … thì dừng”, hoặc chỉnh trực tiếp trong Thông số chi tiết.'; box.appendChild(hint);
+    if (!r.custom) { const btn = document.createElement('button'); btn.className = 'btn ghost'; btn.textContent = 'Chỉnh thông số chi tiết'; btn.onclick = () => setMode('tpl'); box.appendChild(btn); }
     $('aiReply').replaceChildren(box);
     if (window.matchMedia('(max-width:900px)').matches) $('title').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
